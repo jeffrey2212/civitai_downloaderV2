@@ -26,11 +26,12 @@ type CivitaiResponse struct {
 			Name string `json:"name"`
 		} `json:"files"`
 	} `json:"modelVersions"`
+	
 }
 
 func main() {
 	// The URL of the RESTful API
-	url := "https://civitai.com/api/v1/models?limit=1"
+	url := "https://civitai.com/api/v1/models/175522"
 
 	// Send a GET request to the URL
 	resp, err := http.Get(url)
