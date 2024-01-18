@@ -1,39 +1,57 @@
 package main
 
 import (
-    "encoding/json"
-    "net/http"
+	//"encoding/json"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
 )
 
-// ModelDetails represents the structure of the API response
-type ModelDetails struct {
-    ID     int    `json:"id"`
-    Name   string `json:"name"`
-    Creator struct {
-        Username string `json:"username"`
-    } `json:"creator"`
-    // Add other fields as needed
+// Response structure to match the JSON returned by httpbin.org
+type HTTPBinResponse struct {
+	URL string `json:"url"`
 }
 
-// This function will be the one making the API call in your application
-func FetchModelDetails(modelID string) (*ModelDetails, error) {
-    // Implementation will go here
-	apiURL := "https://civitai.com/api/v1/models/" + modelID
-	resp, err := http.Get(apiURL)
-	if err != nil {	
-		return nil, err
+type CivitaiResponse struct {
+	ID            int    `json:"id"`
+	Name          string `json:"name"`
+	Type          string `json:"type"`
+	ModelVersions []struct {
+		ID          int    `json:"id"`
+		Name        string `json:"name"`
+		BaseModel   string `json:"baseModel"`
+		DownloadURL string `json:"downloadUrl"`
+		Files       []struct {
+			Name string `json:"name"`
+		} `json:"files"`
+	} `json:"modelVersions"`
+}
+
+func main() {
+	// The URL of the RESTful API
+	url := "https://civitai.com/api/v1/models?limit=1"
+
+	// Send a GET request to the URL
+	resp, err := http.Get(url)
+	if err != nil {
+		fmt.Printf("Error sending request to API endpoint. %v\n", err)
+		return
 	}
 	defer resp.Body.Close()
 
-	var details ModelDetails
-	err = json.NewDecoder(resp.Body).Decode(&details)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, err
+		fmt.Printf("Error reading response body. %v\n", err)
+		return
 	}
 
-	return &details, nil
-}
+	var responses CivitaiResponse
+	err = json.Unmarshal(body, &responses)
+	if err != nil {
+		fmt.Printf("Error decoding JSON response. %v\n", err)
+		return
+	}
 
-func main(){
-	FetchModelDetails("175522")
+	fmt.Printf("Response: %+v\n", responses)
 }
