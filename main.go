@@ -12,12 +12,11 @@ import (
 	"github.com/cheggaaa/pb/v3"
 )
 
-
 type CivitaiResponse struct {
-	ID            int    `json:"id"`
-	Name          string `json:"name"`
-	Type          string `json:"type"`
-	ModelVersions []ModelVersion`json:"modelVersions"`
+	ID            int            `json:"id"`
+	Name          string         `json:"name"`
+	Type          string         `json:"type"`
+	ModelVersions []ModelVersion `json:"modelVersions"`
 }
 
 type ModelVersion struct {
@@ -28,7 +27,7 @@ type ModelVersion struct {
 	Files       []struct {
 		Name string `json:"name"`
 	} `json:"files"`
-} 
+}
 
 func getAPIResponse(url string) (*CivitaiResponse, error) {
 	// Send a GET request to the URL
@@ -37,7 +36,12 @@ func getAPIResponse(url string) (*CivitaiResponse, error) {
 		fmt.Printf("Error sending request to API endpoint. %v\n", err)
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			fmt.Printf("Error closing response body. %v\n", err)
+		}
+	}(resp.Body)
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -60,14 +64,24 @@ func downloadFile(url string, filepath string) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			fmt.Printf("Error closing response body. %v\n", err)
+		}
+	}(resp.Body)
 
 	// Create the file
 	out, err := os.Create(filepath)
 	if err != nil {
 		return err
 	}
-	defer out.Close()
+	defer func(out *os.File) {
+		err := out.Close()
+		if err != nil {
+			fmt.Printf("Error closing file. %v\n", err)
+		}
+	}(out)
 
 	// Create a progress bar
 	bar := pb.Full.Start64(resp.ContentLength)
@@ -94,7 +108,7 @@ func main() {
 	}
 
 	modelID := ids[0]
-    versionID := ids[1]
+	versionID := ids[1]
 
 	// The URL of the RESTful API
 	url := "https://civitai.com/api/v1/models/" + modelID
@@ -106,7 +120,7 @@ func main() {
 		return
 	}
 
-	var modelVersion ModelVersion 
+	var modelVersion ModelVersion
 	versionIDInt, err := strconv.Atoi(versionID)
 	if err != nil {
 		fmt.Printf("Error converting versionID to integer. %v\n", err)
@@ -120,7 +134,39 @@ func main() {
 		}
 	}
 
-	filepath := "./" + modelVersion.Files[0].Name
+	filename := modelVersion.Files[0].Name
+	baseFolder := "./models/"
+	// if baseFolder does not exist, create it
+	if _, err := os.Stat(baseFolder); os.IsNotExist(err) {
+		err = os.Mkdir(baseFolder, 0755)
+		if err != nil {
+			fmt.Printf("Error creating base folder. %v\n", err)
+			return
+		}
+	}
+
+	filetype := responses.Type
+	subfolder := "others"
+	// check filetype is = "lora", "checkpoints", or others, put in coresponding folder
+	if filetype == "LORA" {
+		subfolder = "lora"
+	} else if filetype == "Checkpoint" {
+		subfolder = "checkpoints"
+	} else if filetype == "TextualInversion" {
+		subfolder = "embeddings"
+	}
+
+	// if subfolder does not exist, create it
+	if _, err := os.Stat(baseFolder + subfolder); os.IsNotExist(err) {
+		err = os.Mkdir(baseFolder+subfolder, 0755)
+		if err != nil {
+			fmt.Printf("Error creating subfolder. %v\n", err)
+			return
+		}
+	}
+
+	filepath := baseFolder + subfolder + "/" + filename
+
 	err = downloadFile(modelVersion.DownloadURL, filepath)
 	if err != nil {
 		fmt.Printf("Error downloading file. %v\n", err)
