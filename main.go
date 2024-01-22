@@ -8,8 +8,9 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
-	"github.com/cheggaaa/pb/v3"
+	"github.com/cavaliergopher/grab/v3"
 )
 
 type CivitaiResponse struct {
@@ -58,42 +59,7 @@ func getAPIResponse(url string) (*CivitaiResponse, error) {
 	return &responses, nil
 }
 
-func downloadFile(url string, filepath string) error {
-	// Send a GET request to the URL
-	resp, err := http.Get(url)
-	if err != nil {
-		return err
-	}
-	defer func(Body io.ReadCloser) {
-		err := Body.Close()
-		if err != nil {
-			fmt.Printf("Error closing response body. %v\n", err)
-		}
-	}(resp.Body)
-
-	// Create the file
-	out, err := os.Create(filepath)
-	if err != nil {
-		return err
-	}
-	defer func(out *os.File) {
-		err := out.Close()
-		if err != nil {
-			fmt.Printf("Error closing file. %v\n", err)
-		}
-	}(out)
-
-	// Create a progress bar
-	bar := pb.Full.Start64(resp.ContentLength)
-	barReader := bar.NewProxyReader(resp.Body)
-
-	// Write the body to file
-	_, err = io.Copy(out, barReader)
-	return err
-}
-
 func main() {
-
 	// handle command line arguments
 	if len(os.Args) < 2 {
 		fmt.Println("Please provide the model ID and version ID in the format modelID@versionID")
@@ -167,12 +133,36 @@ func main() {
 
 	filepath := baseFolder + subfolder + "/" + filename
 
-	err = downloadFile(modelVersion.DownloadURL, filepath)
-	if err != nil {
-		fmt.Printf("Error downloading file. %v\n", err)
-		return
-	}
+	// create grab client
+	client := grab.NewClient()
+	req, _ := grab.NewRequest(filepath, modelVersion.DownloadURL)
 
-	//fmt.Printf("Response: %+v\n", responses)
-	//fmt.Printf("Response: %+v\n", responses.ModelVersions[0].DownloadURL)
+	// start download
+	fmt.Printf("Downloading %v...\n", filename)
+	resp := client.Do(req)
+	fmt.Printf("  %v\n", resp.HTTPResponse.Status)
+
+	// start UI loop
+	t := time.NewTicker(500 * time.Millisecond)
+	defer t.Stop()
+
+loop:
+	for {
+		select {
+		case <-t.C:
+			fmt.Printf("  transferred %v / %v bytes (%.2f%%)\n",
+				resp.BytesComplete(),
+				resp.Size,
+				100*resp.Progress())
+		case <-resp.Done:
+			// download is complete
+			break loop
+		}
+	}
+	// check for errors
+	if err := resp.Err(); err != nil {
+		fmt.Fprintf(os.Stderr, "Download failed: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Printf("Download saved to ./%v \n", resp.Filename)
 }
