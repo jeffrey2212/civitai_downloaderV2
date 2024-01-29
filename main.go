@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"strconv"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"github.com/cavaliergopher/grab/v3"
+	"github.com/joho/godotenv"
 )
 
 type CivitaiResponse struct {
@@ -30,13 +32,23 @@ type ModelVersion struct {
 	} `json:"files"`
 }
 
-func getAPIResponse(url string) (*CivitaiResponse, error) {
+func getAPIResponse(url string, api_key string) (*CivitaiResponse, error) {
 	// Send a GET request to the URL
-	resp, err := http.Get(url)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		fmt.Printf("Error creating request. %v\n", err)
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+api_key)
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		fmt.Printf("Error sending request to API endpoint. %v\n", err)
 		return nil, err
 	}
+
 	defer func(Body io.ReadCloser) {
 		err := Body.Close()
 		if err != nil {
@@ -76,11 +88,19 @@ func main() {
 	modelID := ids[0]
 	versionID := ids[1]
 
+	// load .env file
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
+
+	civitai_api_key := os.Getenv("CIVITAI_API_KEY")
+
 	// The URL of the RESTful API
 	url := "https://civitai.com/api/v1/models/" + modelID
 
 	// Call the function to get the response from the API
-	responses, err := getAPIResponse(url)
+	responses, err := getAPIResponse(url, civitai_api_key)
 	if err != nil {
 		fmt.Printf("Error getting response from API. %v\n", err)
 		return
@@ -136,7 +156,7 @@ func main() {
 	// create grab client
 	client := grab.NewClient()
 	req, _ := grab.NewRequest(filepath, modelVersion.DownloadURL)
-
+	req.HTTPRequest.Header.Set("Authorization", "Bearer "+civitai_api_key)
 	// start download
 	fmt.Printf("Downloading %v...\n", filename)
 	resp := client.Do(req)
