@@ -9,9 +9,9 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/cavaliergopher/grab/v3"
+	"github.com/cheggaaa/pb/v3"
 	"github.com/joho/godotenv"
 )
 
@@ -156,29 +156,31 @@ func main() {
 	// create grab client
 	client := grab.NewClient()
 	req, _ := grab.NewRequest(filepath, modelVersion.DownloadURL)
+	req.NoResume = false
 	req.HTTPRequest.Header.Set("Authorization", "Bearer "+civitai_api_key)
 	// start download
 	fmt.Printf("Downloading %v...\n", filename)
 	resp := client.Do(req)
-	fmt.Printf("  %v\n", resp.HTTPResponse.Status)
+	// create and start new bar
+	bar := pb.Full.Start64(resp.Size())
 
-	// start UI loop
-	t := time.NewTicker(500 * time.Millisecond)
-	defer t.Stop()
+	// create a buffer to control how many bytes to read at a time
+	buffer := make([]byte, 1024*1024) // 1MB
 
-loop:
+	// read from resp.Body into buffer until io.EOF
 	for {
-		select {
-		case <-t.C:
-			fmt.Printf("  transferred %v / %v bytes (%.2f%%)\n",
-				resp.BytesComplete(),
-				resp.Size,
-				100*resp.Progress())
-		case <-resp.Done:
-			// download is complete
-			break loop
+		bytesRead, err := resp.HTTPResponse.Body.Read(buffer)
+		if err != nil {
+			if err != io.EOF {
+				fmt.Println(err)
+			}
+			break
 		}
+		bar.Add(bytesRead)
 	}
+
+	// finish progress bar
+	bar.Finish()
 	// check for errors
 	if err := resp.Err(); err != nil {
 		fmt.Fprintf(os.Stderr, "Download failed: %v\n", err)
