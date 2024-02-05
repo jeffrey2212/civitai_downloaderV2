@@ -10,8 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/cavaliergopher/grab/v3"
-	"github.com/cheggaaa/pb/v3"
+	"github.com/schollz/progressbar/v3"
 	"github.com/joho/godotenv"
 )
 
@@ -153,41 +152,33 @@ func main() {
 
 	filepath := baseFolder + subfolder + "/" + filename
 
-	// create grab client
-	client := grab.NewClient()
-	req, _ := grab.NewRequest(filepath, modelVersion.DownloadURL)
-	req.NoResume = false
-	req.HTTPRequest.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3")
-	req.HTTPRequest.Header.Set("Authorization", "Bearer "+civitai_api_key)
-
-	// start download
-	fmt.Printf("Downloading %v...\n", filename)
-	resp := client.Do(req)
-
-	// create and start new bar
-	bar := pb.Full.Start64(resp.Size())
-
-	// create a buffer to control how many bytes to read at a time
-	buffer := make([]byte, 1024*1024) // 1MB
-
-	// read from resp.Body into buffer until io.EOF
-	for {
-		bytesRead, err := resp.HTTPResponse.Body.Read(buffer)
-		if err != nil {
-			if err != io.EOF {
-				fmt.Println(err)
-			}
-			break
-		}
-		bar.Add(bytesRead)
+	req, err := http.NewRequest("GET", modelVersion.DownloadURL, nil)
+	if err != nil {
+		fmt.Printf("Error creating HTTP request. %v\n", err)
+		return
 	}
+	req.Header.Set("Authorization", "Bearer "+civitai_api_key)
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3")
 
-	// finish progress bar
-	bar.Finish()
-	// check for errors
-	if err := resp.Err(); err != nil {
-		fmt.Fprintf(os.Stderr, "Download failed: %v\n", err)
-		os.Exit(1)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		fmt.Printf("Error making HTTP request. %v\n", err)
+		return
 	}
-	fmt.Printf("Download saved to ./%v \n", resp.Filename)
+	defer resp.Body.Close()
+
+	f, err := os.OpenFile(filepath, os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		fmt.Printf("Error opening file. %v\n", err)
+		return
+	}
+	defer f.Close()
+
+	fmt.Printf("Downloading %s to %s\n", modelVersion.DownloadURL, filepath)
+	// create a progress bar
+	bar := progressbar.DefaultBytes(
+		resp.ContentLength,
+		filename,
+	)
+	io.Copy(io.MultiWriter(f, bar), resp.Body)
 }
