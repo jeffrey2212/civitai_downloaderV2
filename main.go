@@ -158,9 +158,15 @@ func main() {
 	req, _ := grab.NewRequest(filepath, modelVersion.DownloadURL)
 	req.NoResume = false
 	req.HTTPRequest.Header.Set("Authorization", "Bearer "+civitai_api_key)
+	req.HTTPRequest.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3")
+
 	// start download
 	fmt.Printf("Downloading %v...\n", filename)
 	resp := client.Do(req)
+	if resp.Err() != nil {
+		fmt.Println("Download error:", resp.Err())
+		return
+	}
 	// create and start new bar
 	bar := pb.Full.Start64(resp.Size())
 
