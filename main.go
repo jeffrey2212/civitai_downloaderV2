@@ -78,27 +78,20 @@ func main() {
 	}
 	input := os.Args[1]
 
-	var modelID, versionID string
+	// Generic regular expression for model reference
+	re := regexp.MustCompile(`^urn:air:sd\w+:\w+:civitai:(\d+)@(\d+)$`) 
+	match := re.FindStringSubmatch(input)
 
-	// Format 1: number@number
-	reNumber := regexp.MustCompile(`^(\d+)@(\d+)$`)
-	matchNumber := reNumber.FindStringSubmatch(input)
-	if matchNumber != nil {
-		modelID = matchNumber[1]
-		versionID = matchNumber[2]
-	} else {
-		// Format 2: urn:air:sdxl:checkpoint:civitai:133005@357609
-		reURN := regexp.MustCompile(`urn:air:sdxl:checkpoint:civitai:(\d+)@(\d+)`)
-		matchURN := reURN.FindStringSubmatch(input)
-		if matchURN != nil {
-			modelID = matchURN[1]
-			versionID = matchURN[2]
-		} else {
-			fmt.Println("Invalid input format. Please use either the format number@number (e.g., 12345@6789) or the URN format.")
-			return
-		}
+	if match == nil {
+		fmt.Println("Invalid input format. Please ensure the model reference contains a pattern of text followed by number@number.")
+		return
 	}
+	
+	modelID := match[1]
+	versionID := match[2]
 
+	fmt.Printf("Model ID: %s\n", modelID)
+	fmt.Printf("Version ID: %s\n", versionID)
 	// load .env file
 	err := godotenv.Load()
 	if err != nil {
