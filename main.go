@@ -7,11 +7,11 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"regexp"
 	"strconv"
-	"strings"
 
-	"github.com/schollz/progressbar/v3"
 	"github.com/joho/godotenv"
+	"github.com/schollz/progressbar/v3"
 )
 
 type CivitaiResponse struct {
@@ -73,19 +73,31 @@ func getAPIResponse(url string, api_key string) (*CivitaiResponse, error) {
 func main() {
 	// handle command line arguments
 	if len(os.Args) < 2 {
-		fmt.Println("Please provide the model ID and version ID in the format modelID@versionID")
+		fmt.Println("Please provide a model reference in the format number@number")
 		return
 	}
+	input := os.Args[1]
 
-	arg := os.Args[1]
-	ids := strings.Split(arg, "@")
-	if len(ids) != 2 {
-		fmt.Println("Invalid argument. Please provide the model ID and version ID in the format modelID@versionID")
-		return
+	var modelID, versionID string
+
+	// Format 1: number@number
+	reNumber := regexp.MustCompile(`^(\d+)@(\d+)$`)
+	matchNumber := reNumber.FindStringSubmatch(input)
+	if matchNumber != nil {
+		modelID = matchNumber[1]
+		versionID = matchNumber[2]
+	} else {
+		// Format 2: urn:air:sdxl:checkpoint:civitai:133005@357609
+		reURN := regexp.MustCompile(`urn:air:sdxl:checkpoint:civitai:(\d+)@(\d+)`)
+		matchURN := reURN.FindStringSubmatch(input)
+		if matchURN != nil {
+			modelID = matchURN[1]
+			versionID = matchURN[2]
+		} else {
+			fmt.Println("Invalid input format. Please use either the format number@number (e.g., 12345@6789) or the URN format.")
+			return
+		}
 	}
-
-	modelID := ids[0]
-	versionID := ids[1]
 
 	// load .env file
 	err := godotenv.Load()
