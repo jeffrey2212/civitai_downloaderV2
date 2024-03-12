@@ -90,8 +90,8 @@ func main() {
 	modelID := match[1]
 	versionID := match[2]
 
-	fmt.Printf("Model ID: %s\n", modelID)
-	fmt.Printf("Version ID: %s\n", versionID)
+	//fmt.Printf("Model ID: %s\n", modelID)
+	//fmt.Printf("Version ID: %s\n", versionID)
 	// load .env file
 	err := godotenv.Load()
 	if err != nil {
