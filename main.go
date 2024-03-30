@@ -9,6 +9,7 @@ import (
 	"os"
 	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/joho/godotenv"
 	"github.com/schollz/progressbar/v3"
@@ -78,20 +79,22 @@ func main() {
 	}
 	input := os.Args[1]
 
-	// Generic regular expression for model reference
-	re := regexp.MustCompile(`^urn:air:sd\w+:\w+:civitai:(\d+)@(\d+)$`) 
-	match := re.FindStringSubmatch(input)
+	parts := strings.Split(input, ":")
 
-	if match == nil {
-		fmt.Println("Invalid input format. Please ensure the model reference contains a pattern of text followed by number@number.")
-		return
-	}
-	
-	modelID := match[1]
-	versionID := match[2]
+	// Extract base model
+	baseModel := parts[2]
 
-	//fmt.Printf("Model ID: %s\n", modelID)
-	//fmt.Printf("Version ID: %s\n", versionID)
+	// Extract model ID and version ID using a regular expression
+	re := regexp.MustCompile(`(\d+)@(\d+)`)
+	matches := re.FindStringSubmatch(parts[5])
+
+	modelID := matches[1]
+	versionID := matches[2]
+
+	fmt.Println("Base Model:", baseModel)
+	fmt.Println("Model ID:", modelID)
+	fmt.Println("Version ID:", versionID)
+	fmt.Println("--------")
 	// load .env file
 	err := godotenv.Load()
 	if err != nil {
@@ -139,23 +142,33 @@ func main() {
 	subfolder := "others"
 	// check filetype is = "lora", "checkpoints", or others, put in coresponding folder
 	if filetype == "LORA" {
-		subfolder = "lora"
+		subfolder = "lora/"
 	} else if filetype == "Checkpoint" {
-		subfolder = "checkpoints"
+		subfolder = "checkpoints/"
 	} else if filetype == "TextualInversion" {
-		subfolder = "embeddings"
+		subfolder = "embeddings/"
 	}
 
+	save_path := baseFolder + subfolder + baseModel
 	// if subfolder does not exist, create it
 	if _, err := os.Stat(baseFolder + subfolder); os.IsNotExist(err) {
-		err = os.Mkdir(baseFolder+subfolder, 0755)
+		err = os.Mkdir(baseFolder + subfolder, 0755)
 		if err != nil {
 			fmt.Printf("Error creating subfolder. %v\n", err)
 			return
 		}
 	}
 
-	filepath := baseFolder + subfolder + "/" + filename
+	// if save path does not exist, create it
+	if _, err := os.Stat(save_path); os.IsNotExist(err) {
+		err = os.Mkdir(save_path, 0755)
+		if err != nil {
+			fmt.Printf("Error creating subfolder. %v\n", err)
+			return
+		}
+	}
+
+	filepath := save_path + "/" + filename
 
 	req, err := http.NewRequest("GET", modelVersion.DownloadURL, nil)
 	if err != nil {
